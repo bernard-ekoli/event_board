@@ -1,23 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import connectToDatabase from "@/lib/connnect_db";
 import User from "@/app/schema/users";
+import { setAuthCookie, signToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
     await connectToDatabase();
 
-    const { email, password } = await req.json();
+    const body: unknown = await req.json();
+    if (typeof body !== "object" || body === null) {
+      return NextResponse.json({ message: "Invalid request body." }, { status: 400 });
+    }
+    const { email, password } = body as {
+      email?: unknown;
+      password?: unknown;
+    };
 
-    if (!email || !password) {
+    if (
+      typeof email !== "string" ||
+      !email.trim() ||
+      typeof password !== "string" ||
+      !password
+    ) {
       return NextResponse.json(
         { message: "Email and password are required." },
         { status: 400 },
       );
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
 
     if (!user) {
       return NextResponse.json(
@@ -35,31 +47,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const secret = process.env.JWT_SECRET;
-
-    if (!secret) {
-      throw new Error("JWT_SECRET is not configured.");
-    }
-
-    const token = jwt.sign({ userId: user._id.toString() }, secret, {
-      expiresIn: "1h",
-    });
+    const token = signToken({ sub: user._id.toString(), role: "user" });
 
     const response = NextResponse.json(
-      { message: "Login successful." },
+      {
+        user: {
+          id: user._id.toString(),
+          email: user.email,
+          favouriteCategories: user.favouriteCategories ?? [],
+        },
+      },
       { status: 200 },
     );
 
-    response.cookies.set({
-      name: "token",
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 60 * 60 * 24,
-      path: "/",
-    });
-
+    setAuthCookie(response, token);
     return response;
   } catch (error) {
     console.error("Error during login:", error);

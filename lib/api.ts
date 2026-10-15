@@ -38,7 +38,6 @@ export interface CardDesign {
 }
 
 interface AuthResponse {
-  token: string;
   user: User;
 }
 
@@ -59,11 +58,6 @@ interface CardDesignResponse {
   cardDesign: CardDesign;
 }
 
-interface RequestOptions {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
-  body?: object;
-}
-
 export class ApiError extends Error {
   status: number;
 
@@ -74,69 +68,34 @@ export class ApiError extends Error {
   }
 }
 
-function getErrorMessage(data: unknown): string {
-  if (typeof data === "object" && data !== null && "message" in data) {
-    if (typeof data.message === "string") {
-      return data.message;
-    }
-  }
-
-  return "Something went wrong";
-}
-
-async function request<T>(
-  path: string,
-  options: RequestOptions = {},
-): Promise<T> {
-  const response = await fetch(path, {
-    method: options.method,
+async function sendRequest(
+  url: string,
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+  body?: object,
+) {
+  const response = await fetch(url, {
+    method,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
   });
 
-  let data: unknown = null;
-
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-
   if (!response.ok) {
-    throw new ApiError(response.status, getErrorMessage(data));
-  }
+    let message = "Something went wrong";
 
-  return data as T;
-}
-
-interface QueryParams {
-  category?: Category;
-  city?: string;
-  q?: string;
-  page?: number;
-  limit?: number;
-}
-
-function createQueryString(params: QueryParams): string {
-  const searchParams = new URLSearchParams();
-  const entries = Object.entries(params);
-
-  for (const [key, value] of entries) {
-    if (value !== undefined) {
-      searchParams.set(key, String(value));
+    try {
+      const errorData: { message?: string } = await response.json();
+      if (errorData.message) {
+        message = errorData.message;
+      }
+    } catch {
+      message = "Something went wrong";
     }
+
+    throw new ApiError(response.status, message);
   }
 
-  const queryString = searchParams.toString();
-
-  if (queryString === "") {
-    return "";
-  }
-
-  return `?${queryString}`;
+  return response;
 }
 
 // Authentication
@@ -145,70 +104,115 @@ export async function signUp(
   email: string,
   password: string,
 ): Promise<AuthResponse> {
-  return request<AuthResponse>("/api/auth/signup", {
-    method: "POST",
-    body: { email, password },
+  const response = await sendRequest("/api/auth/signup", "POST", {
+    email,
+    password,
   });
+  const data: AuthResponse = await response.json();
+  return data;
 }
 
 export async function login(
   email: string,
   password: string,
 ): Promise<AuthResponse> {
-  return request<AuthResponse>("/api/auth/login", {
-    method: "POST",
-    body: { email, password },
+  const response = await sendRequest("/api/auth/login", "POST", {
+    email,
+    password,
   });
+  const data: AuthResponse = await response.json();
+  return data;
 }
 
 export async function logout(): Promise<{ ok: true }> {
-  return request<{ ok: true }>("/api/auth/logout", {
-    method: "POST",
-  });
+  const response = await sendRequest("/api/auth/logout", "POST");
+  const data: { ok: true } = await response.json();
+  return data;
 }
 
 // User account
 
 export async function getMe(): Promise<UserResponse> {
-  return request<UserResponse>("/api/me");
+  const response = await sendRequest("/api/me");
+  const data: UserResponse = await response.json();
+  return data;
 }
 
 export async function updateFavourites(
   categories: Category[],
 ): Promise<UserResponse> {
-  return request<UserResponse>("/api/me/favourites", {
-    method: "PUT",
-    body: { categories },
+  const response = await sendRequest("/api/me/favourites", "PUT", {
+    categories,
   });
+  const data: UserResponse = await response.json();
+  return data;
 }
 
 // Cities
 
 export async function getCities(): Promise<CitiesResponse> {
-  return request<CitiesResponse>("/api/cities");
+  const response = await sendRequest("/api/cities");
+  const data: CitiesResponse = await response.json();
+  return data;
 }
 
 // Events
 
+interface EventFilters {
+  category?: Category;
+  city?: string;
+  q?: string;
+  page?: number;
+  limit?: number;
+}
+
 export async function getEvents(
-  params: QueryParams = {},
+  filters: EventFilters = {},
 ): Promise<Paginated<EventItem>> {
-  return request<Paginated<EventItem>>(
-    `/api/events${createQueryString(params)}`,
-  );
+  const params = new URLSearchParams();
+
+  if (filters.category !== undefined)
+    params.set("category", filters.category);
+  if (filters.city !== undefined) params.set("city", filters.city);
+  if (filters.q !== undefined) params.set("q", filters.q);
+  if (filters.page !== undefined) params.set("page", String(filters.page));
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+
+  let url = "/api/events";
+  if (params.toString()) {
+    url += `?${params.toString()}`;
+  }
+
+  const response = await sendRequest(url);
+  const data: Paginated<EventItem> = await response.json();
+  return data;
 }
 
 export async function getEvent(id: string): Promise<EventResponse> {
-  return request<EventResponse>(`/api/events/${encodeURIComponent(id)}`);
+  const response = await sendRequest(
+    `/api/events/${encodeURIComponent(id)}`,
+  );
+  const data: EventResponse = await response.json();
+  return data;
 }
 
 export async function getFeed(
   page?: number,
   limit?: number,
 ): Promise<Paginated<EventItem>> {
-  return request<Paginated<EventItem>>(
-    `/api/feed${createQueryString({ page, limit })}`,
-  );
+  const params = new URLSearchParams();
+
+  if (page !== undefined) params.set("page", String(page));
+  if (limit !== undefined) params.set("limit", String(limit));
+
+  let url = "/api/feed";
+  if (params.toString()) {
+    url += `?${params.toString()}`;
+  }
+
+  const response = await sendRequest(url);
+  const data: Paginated<EventItem> = await response.json();
+  return data;
 }
 
 // Event reminders
@@ -216,23 +220,23 @@ export async function getFeed(
 export async function addReminder(
   id: string,
 ): Promise<{ reminded: true }> {
-  return request<{ reminded: true }>(
+  const response = await sendRequest(
     `/api/events/${encodeURIComponent(id)}/reminder`,
-    {
-      method: "PUT",
-    },
+    "PUT",
   );
+  const data: { reminded: true } = await response.json();
+  return data;
 }
 
 export async function removeReminder(
   id: string,
 ): Promise<{ reminded: false }> {
-  return request<{ reminded: false }>(
+  const response = await sendRequest(
     `/api/events/${encodeURIComponent(id)}/reminder`,
-    {
-      method: "DELETE",
-    },
+    "DELETE",
   );
+  const data: { reminded: false } = await response.json();
+  return data;
 }
 
 // Event card design
@@ -241,11 +245,70 @@ export async function saveCardDesign(
   id: string,
   design: CardDesign,
 ): Promise<CardDesignResponse> {
-  return request<CardDesignResponse>(
+  const response = await sendRequest(
     `/api/events/${encodeURIComponent(id)}/card-design`,
-    {
-      method: "PUT",
-      body: design,
-    },
+    "PUT",
+    design,
   );
+  const data: CardDesignResponse = await response.json();
+  return data;
+}
+
+// Admin
+
+export async function adminLogin(
+  email: string,
+  password: string,
+): Promise<{ token: string }> {
+  const response = await sendRequest("/api/admin/login", "POST", {
+    email,
+    password,
+  });
+  const data: { token: string } = await response.json();
+  return data;
+}
+
+export async function getAdminEvents(
+  page = 1,
+  limit = 9,
+): Promise<Paginated<EventItem>> {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+
+  const response = await sendRequest(`/api/admin/events?${params.toString()}`);
+  const data: Paginated<EventItem> = await response.json();
+  return data;
+}
+
+export async function setAdminEventActive(
+  id: string,
+  isActive: boolean,
+): Promise<{ event: { id: string; isActive: boolean } }> {
+  const response = await sendRequest(
+    `/api/admin/events/${encodeURIComponent(id)}`,
+    "PATCH",
+    { isActive },
+  );
+  const data: { event: { id: string; isActive: boolean } } =
+    await response.json();
+  return data;
+}
+
+export interface NewEvent {
+  title: string;
+  category: Category;
+  city: string;
+  dateTime: string;
+  price: number;
+  description: string;
+  imageUrl: string;
+}
+
+export async function createAdminEvent(
+  event: NewEvent,
+): Promise<{ event: { id: string } }> {
+  const response = await sendRequest("/api/admin/events", "POST", event);
+  const data: { event: { id: string } } = await response.json();
+  return data;
 }

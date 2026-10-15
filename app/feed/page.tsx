@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, getFeed, type EventItem, type Paginated } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { EventsGrid, EventsSkeletonGrid } from "@/components/event-card";
 
-export default function FeedPage() {
+function FeedContent() {
   const router = useRouter();
   const params = useSearchParams();
   const page = Math.max(1, Number(params.get("page") || 1));
@@ -31,6 +32,7 @@ export default function FeedPage() {
   function go(next: number) {
     router.push(`/feed?page=${next}`);
   }
+
   return (
     <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -95,5 +97,19 @@ export default function FeedPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function FeedPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8">
+          <EventsSkeletonGrid />
+        </main>
+      }
+    >
+      <FeedContent />
+    </Suspense>
   );
 }
