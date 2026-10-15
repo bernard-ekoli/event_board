@@ -10,6 +10,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const user = await getCurrentUser();
     const { id } = await params;
     if (!mongoose.isValidObjectId(id)) {
       return NextResponse.json({ message: "Event not found." }, { status: 404 });
@@ -21,17 +22,56 @@ export async function PUT(
         { status: 400 },
       );
     }
-    await getCurrentUser();
+
     await connectToDatabase();
-    const event = await Event.findOneAndUpdate(
-      { _id: id, isActive: true },
-      { cardDesign: body },
-      { new: true },
-    );
-    if (!event) {
-      return NextResponse.json({ message: "Event not found." }, { status: 404 });
+    const designFilter = {
+      _id: id,
+      isActive: true,
+      "cardDesigns.user": user._id,
+    };
+    const designUpdate = {
+      $set: {
+        "cardDesigns.$.theme": body.theme,
+        "cardDesigns.$.stickers": body.stickers,
+      },
+    };
+
+    const updated = await Event.updateOne(designFilter, designUpdate);
+    if (updated.matchedCount === 0) {
+      const added = await Event.updateOne(
+        {
+          _id: id,
+          isActive: true,
+          cardDesigns: { $not: { $elemMatch: { user: user._id } } },
+        },
+        {
+          $push: {
+            cardDesigns: {
+              user: user._id,
+              theme: body.theme,
+              stickers: body.stickers,
+            },
+          },
+        },
+      );
+
+      if (added.matchedCount === 0) {
+        const updatedAfterInsert = await Event.updateOne(
+          designFilter,
+          designUpdate,
+        );
+        if (updatedAfterInsert.matchedCount === 0) {
+          return NextResponse.json(
+            { message: "Event not found." },
+            { status: 404 },
+          );
+        }
+      }
     }
-    return NextResponse.json({ cardDesign: event.cardDesign });
+
+    return NextResponse.json({
+      cardDesign: { theme: body.theme, stickers: body.stickers },
+    });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(

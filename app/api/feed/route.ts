@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     const data = await getPaginatedEvents(
       {
         isActive: true,
+        dateTime: { $gte: new Date() },
         category: { $in: user.favouriteCategories },
       },
       Number(req.nextUrl.searchParams.get("page") ?? "1"),

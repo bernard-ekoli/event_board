@@ -21,9 +21,21 @@ export async function GET(
     }
 
     const user = await getCurrentUserOrNull();
+    const cardDesign = user
+      ? event.cardDesigns.find(
+          (design: {
+            user: mongoose.Types.ObjectId;
+            theme: string;
+            stickers: string[];
+          }) => design.user.toString() === user._id.toString(),
+        )
+      : null;
+
     return NextResponse.json({
       event: toEventItem(event, user?._id.toString()),
-      cardDesign: event.cardDesign ?? null,
+      cardDesign: cardDesign
+        ? { theme: cardDesign.theme, stickers: cardDesign.stickers }
+        : null,
     });
   } catch (error) {
     console.error("Error loading event:", error);

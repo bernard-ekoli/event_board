@@ -14,7 +14,10 @@ export async function GET(req: NextRequest) {
     const category = params.get("category");
     const city = params.get("city")?.trim();
     const query = params.get("q")?.trim();
-    const filter: EventFilter = { isActive: true };
+    const filter: EventFilter = {
+      isActive: true,
+      dateTime: { $gte: new Date() },
+    };
     if (category) {
       if (!isCategory(category)) {
         return NextResponse.json(

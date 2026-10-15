@@ -26,7 +26,7 @@ const mockEvents = [
       "Hear independent artists perform outdoors, with food stalls and space to relax with friends.",
     imageUrl:
       "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1600&q=80",
-    cardDesign: { theme: "sunset", stickers: ["music", "party"] },
+    cardDesign: { theme: "sunset", stickers: ["sparkles", "party"] },
   },
   {
     id: "66f1a2b3c4d5e6f708090007",

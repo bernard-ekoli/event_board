@@ -2,6 +2,7 @@ import mongoose, { Schema, type InferSchemaType } from "mongoose";
 
 const cardDesignSchema = new Schema(
   {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     theme: { type: String, enum: ["sunset", "ocean", "midnight"], required: true },
     stickers: {
       type: [String],
@@ -27,7 +28,7 @@ const eventSchema = new Schema(
     imageUrl: { type: String, required: true, trim: true },
     isActive: { type: Boolean, default: true },
     remindedBy: [{ type: Schema.Types.ObjectId, ref: "User" }],
-    cardDesign: { type: cardDesignSchema, default: null },
+    cardDesigns: { type: [cardDesignSchema], default: [] },
   },
   { timestamps: true },
 );
